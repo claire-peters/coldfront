@@ -1,0 +1,72 @@
+name: Coldfront CI
+
+on:
+  push:
+    branches: [ "ci_cd", "development", "main" ]
+  pull_request:
+    branches: [ "ci_cd", "development", "main" ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.7, 3.8]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Set up SSH key
+      run: |
+        mkdir -p ~/.ssh/
+        echo "$SSH_KEY" > ~/.ssh/staging.key
+        chmod 600 ~/.ssh/staging.key
+        ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+        ssh-add ~/.ssh/staging.key
+      env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          SSH_KEY: ${{ secrets.ACTION_SSH }}
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+      env:
+        SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    # - name: Format with black
+    #   run: |
+    #     pip install black
+    #     # format the files with black
+    #     black .
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Sort imports
+      run: |
+        pip install isort
+        # stop the build if there are Python syntax errors or undefined names
+        isort .
+        isort --check --diff .
+    - name: Build the images and start the containers
+      run: |
+        export GITHUB_WORKFLOW=True
+        export MODE="Test"
+        export COMPOSE_DOCKER_CLI_BUILD=1
+        export DOCKER_BUILDKIT=1
+        make build
+        docker run -d --rm --name coldfront -v `pwd`:/usr/src/app \
+        -p 9000:80 coldfront
+      env:
+        SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+    - name: Run Tests
+      run: |
+        docker exec coldfront ./manage.py test --exclude-tag=net
+    # - name: change env variables
+    #   run: docker exec coldfront export
+    # - name: Run Tests
+    #   run: |
+    #     docker exec coldfront ./manage.py test
