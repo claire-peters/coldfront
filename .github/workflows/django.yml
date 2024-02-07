@@ -15,16 +15,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-    - name: Set up SSH key
-      run: |
-        mkdir -p ~/.ssh/
-        echo "$SSH_KEY" > ~/.ssh/staging.key
-        chmod 600 ~/.ssh/staging.key
-        ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-        ssh-add ~/.ssh/staging.key
-      env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-          SSH_KEY: ${{ secrets.ACTION_SSH }}
     - name: Checkout submodules
       run: git submodule update --init --recursive
       env:
