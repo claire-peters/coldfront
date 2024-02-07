@@ -47,7 +47,7 @@ jobs:
         export MODE="Test"
         export COMPOSE_DOCKER_CLI_BUILD=1
         export DOCKER_BUILDKIT=1
-        docker build coldfront
+        docker build .
         docker run -d --rm --name coldfront -v `pwd`:/usr/src/app \
         -p 9000:80 coldfront
       env:
